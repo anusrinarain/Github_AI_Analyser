@@ -1,0 +1,14 @@
+# --- Security (CRITICAL) ---
+# This ignores the secrets file inside the .streamlit folder
+.streamlit/secrets.toml
+
+# --- User Requested Ignores ---
+# Ignores files/folders literally named "app" or "test"
+app
+test
+app,test
+
+# --- Standard Python Junk ---
+__pycache__/
+*.pyc
+.env

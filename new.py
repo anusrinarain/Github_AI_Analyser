@@ -4,226 +4,159 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from google import genai
-import datetime
-st.set_page_config(
-    page_title="DevProfile AI | Career Analytics",
-    layout="wide",
-    page_icon="👨‍💻",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="AI GitHub Analyzer", layout="wide", page_icon="🚀")
+
 st.markdown("""
 <style>
-    /* Main Background */
-    .stApp {
-        background-color: #0e1117;
-    }
-    
-    /* Typography */
-    h1, h2, h3 {
-        color: #f0f6fc !important;
-        font-family: 'Inter', sans-serif;
-    }
-    
-    /* Custom Metrics Cards */
-    div[data-testid="stMetric"] {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    div[data-testid="stMetricLabel"] {
-        color: #8b949e;
-    }
-    div[data-testid="stMetricValue"] {
-        color: #58a6ff;
-    }
-
-    /* AI Insight Box */
-    .ai-box {
-        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-        border-left: 5px solid #8b5cf6;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    }
-    
-    /* Tables */
-    div[data-testid="stDataFrame"] {
-        border: 1px solid #30363d;
-        border-radius: 8px;
-    }
+.main { background-color: #0d1117; color: #c9d1d9; }
+.stMetric { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; }
+[data-testid="stMetricValue"] { color: #58a6ff; font-weight: bold; }
+/* Sidebar AI Box Styling */
+.sidebar-box {
+    background-color: #161b22;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #38bdf8;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+.skill-badge {
+    background-color: #238636;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 15px;
+    display: inline-block;
+    margin: 3px;
+    font-size: 12px;
+}
 </style>
 """, unsafe_allow_html=True)
 try:
     GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-except Exception:
-    st.error("Secrets missing! Please check .streamlit/secrets.toml")
+except KeyError:
+    st.error("Missing secrets! Check your .streamlit/secrets.toml file.")
     st.stop()
+
 client = genai.Client(api_key=GEMINI_API_KEY)
-@st.cache_data(ttl=600)
-def get_github_data(username):
+def fetch_github_data(username):
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    try:
-        user = requests.get(f"https://api.github.com/users/{username}", headers=headers).json()
-        repos = requests.get(f"https://api.github.com/users/{username}/repos?per_page=100&sort=updated", headers=headers).json()
-        return user, repos
-    except Exception as e:
-        return None, None
-
-def get_ai_analysis(user, repos):
-    
-    repo_context = []
-    for r in repos[:6]: 
-        repo_context.append(
-            f"- {r['name']} (Lang: {r['language']}, Stars: {r['stargazers_count']}): {r['description']}"
-        )
-    repo_text = "\n".join(repo_context)
-    
-    prompt = f"""
-    Act as a **Senior Technical Recruiter** at a top tech company hiring B.Tech graduates. 
-    Analyze this candidate's GitHub profile.
-    
-    **Candidate Profile:**
-    - Bio: {user.get('bio', 'N/A')}
-    - Public Repos: {user.get('public_repos')}
-    - Followers: {user.get('followers')}
-    
-    **Top Projects:**
-    {repo_text}
-    
-    **Output Requirement:**
-    Provide a structured Markdown report with:
-    1. 🏆 **Hiring Verdict**: A 1-sentence summary of their employability.
-    2. 🛠 **Tech Stack Strength**: Core languages/frameworks they seem proficient in.
-    3. 💡 **Project Complexity Analysis**: Are these simple tutorials or complex applications?
-    4. 🚀 **Career Recommendation**: Which specific role fits them best? (e.g., Backend Engineer, Data Scientist, Frontend Dev).
-    
-    Tone: Professional, insightful, and constructive.
-    """
-    
-    response = client.models.generate_content(
-        model="gemini-2.0-flash", 
-        contents=prompt
-    )
-    return response.text
-
-# Sidebar Inputs
+    user = requests.get(f"https://api.github.com/users/{username}", headers=headers).json()
+    repos = requests.get(f"https://api.github.com/users/{username}/repos?sort=updated&per_page=100", headers=headers).json()
+    return user, repos
 with st.sidebar:
-    st.title("Profile Config")
-    target_user = st.text_input("GitHub Username", "anusrinarain")
-    analyze_btn = st.button("Analyze Profile", type="primary")
+    st.title("Dashboard Settings")
+    username = st.text_input("Enter GitHub Username", "anusrinarain")
+    st.info("Please enter a public GitHub username for the best results and analysis.")
     st.divider()
-    st.info("Tip: Use a username with public repositories for the best analysis.")
+    
+    st.subheader("AI Recruiter Insights")
+    ai_sidebar_area = st.empty()
+    st.divider()
+    st.subheader("Top 5 Skills")
+    skills_sidebar_area = st.empty()
+st.title("AI GitHub Profile Dashboard")
 
-# Main Content
-if target_user:
-    with st.spinner(f"Scouting GitHub data for {target_user}..."):
-        user_data, repos = get_github_data(target_user)
+if username:
+    with st.spinner("Analyzing profile..."):
+        user_data, repos = fetch_github_data(username)
 
-    if user_data and "login" in user_data:
-       
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            st.image(user_data['avatar_url'], width=150)
-        with col2:
-            st.title(user_data.get('name') or target_user)
-            st.markdown(f"**{user_data.get('bio') or 'No bio provided'}**")
-            st.caption(f"{user_data.get('location', 'Global')} | 🏢 {user_data.get('company', 'Open Source')}")
-            st.markdown(f"[View on GitHub]({user_data['html_url']})", unsafe_allow_html=True)
-
-        st.divider()
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("📦 Repositories", user_data['public_repos'])
-        m2.metric("⭐ Total Stars", sum([r['stargazers_count'] for r in repos]))
-        m3.metric("👥 Followers", user_data['followers'])
-        created_at = datetime.datetime.strptime(user_data['created_at'], "%Y-%m-%dT%H:%M:%SZ")
-        years_active = datetime.datetime.now().year - created_at.year
-        m4.metric("Years Active", f"{years_active}+ Years")
+    if "login" in user_data:
+        # Profile Header
+        col_img, col_info = st.columns([1, 4])
+        with col_img:
+            st.image(user_data["avatar_url"], width=150)
+        with col_info:
+            st.header(user_data.get("name") or username)
+            st.write(user_data.get("bio") or "Developer | Engineer")
+            st.markdown(f"🔗 [Visit GitHub Profile]({user_data['html_url']})")
 
         st.divider()
 
-        #AI ANALYSIS SECTION
-        st.subheader("Recruiter's Evaluation")
-        with st.container():
-            if GEMINI_API_KEY:
-                try:
-                    with st.spinner("AI Recruiter is reviewing code..."):
-                        analysis = get_ai_analysis(user_data, repos)
-                    st.markdown(f"""<div class='ai-box'>{analysis}</div>""", unsafe_allow_html=True)
-                except Exception as e:
-                    st.warning(f"AI Analysis unavailable: {e}")
-            else:
-                st.error("Please add GEMINI_API_KEY to secrets.toml")
-        st.subheader("Technical Deep Dive")
-        
-        # Data Prep
-        langs = [r['language'] for r in repos if r['language']]
-        df_lang = pd.DataFrame(langs, columns=['Language']).value_counts().reset_index()
-        df_lang.columns = ['Language', 'Count']
-        
-        repo_dates = [r['created_at'][:4] for r in repos]
-        df_activity = pd.DataFrame(repo_dates, columns=['Year']).value_counts().reset_index().sort_values('Year')
-        df_activity.columns = ['Year', 'Repo Count']
+        # Metrics Row
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Public Repos", user_data.get("public_repos", 0))
+        m2.metric("Followers", user_data.get("followers", 0))
+        m3.metric("Following", user_data.get("following", 0))
 
-        #Tech Stack & Activity Timeline
-        c1, c2 = st.columns(2)
-        
-        with c1:
-            st.markdown("#### 🛠 Tech Stack Distribution")
-            if not df_lang.empty:
-                fig_pie = px.pie(df_lang, values='Count', names='Language', hole=0.5, 
+        st.divider()
+        try:
+            repo_names = [r["name"] for r in repos[:5] if "name" in r]
+            repo_desc = " ".join([str(r['description']) for r in repos if r['description']])
+            prompt = f"Act as an HR Manager. Analyze these projects: {', '.join(repo_names)}. Give 3 short professional bullet points."
+            response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+            ai_sidebar_area.markdown(f"<div class='sidebar-box'>{response.text}</div>", unsafe_allow_html=True)
+            skill_prompt = f"List exactly the top 5 technical skills from: {repo_desc}. Format: S1, S2, S3, S4, S5."
+            skill_res = client.models.generate_content(model="gemini-2.0-flash", contents=skill_prompt)
+            skills = skill_res.text.split(',')
+            
+            skill_html = "".join([f"<span class='skill-badge'>{s.strip()}</span>" for s in skills[:5]])
+            skills_sidebar_area.markdown(skill_html, unsafe_allow_html=True)
+            
+        except Exception:
+            ai_sidebar_area.warning("AI Insights temporarily unavailable.")
+            skills_sidebar_area.info("Skills unavailable right now.")
+        st.subheader("Performance Analytics")
+
+        langs = [r["language"] for r in repos if r.get("language")]
+        if langs:
+            df = pd.Series(langs).value_counts().reset_index()
+            df.columns = ["Language", "Count"]
+
+            g1, g2 = st.columns(2)
+            with g1:
+                fig_pie = px.pie(df, values="Count", names="Language", hole=0.6,
                                  color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color="white", showlegend=True)
+                fig_pie.update_layout(height=600, paper_bgcolor="rgba(0,0,0,0)", font_color="white")
                 st.plotly_chart(fig_pie, use_container_width=True)
-            else:
-                st.info("No language data found.")
 
-        with c2:
-            st.markdown("#### Consistency Timeline")
-            if not df_activity.empty:
-                fig_bar = px.bar(df_activity, x='Year', y='Repo Count', 
-                                 color='Repo Count', color_continuous_scale='Bluyl')
-                fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white")
-                st.plotly_chart(fig_bar, use_container_width=True)
-            else:
-                st.info("No activity data found.")
+            with g2:
+                fig_radar = go.Figure(data=go.Scatterpolar(r=df["Count"], theta=df["Language"], fill="toself", line_color="#a5d6a7"))
+                fig_radar.update_layout(
+                    height=600,
+                    polar=dict(bgcolor="#161b22", radialaxis=dict(visible=True, gridcolor="#30363d")),
+                    paper_bgcolor="rgba(0,0,0,0)", font_color="white"
+                )
+                st.plotly_chart(fig_radar, use_container_width=True)
 
-        #Impact Analysis
-        st.markdown("#### ⚡ Project Impact (Size vs. Stars)")
+        st.divider()
         
-        repo_data = [{
-            'Name': r['name'],
-            'Stars': r['stargazers_count'],
-            'Size': r['size'],
-            'Language': r['language'] or 'Unknown'
-        } for r in repos]
+        # Timeline Chart
+        st.subheader("Consistency Timeline")
+        repo_years = [r['created_at'][:4] for r in repos]
+        if repo_years:
+            df_years = pd.Series(repo_years).value_counts().reset_index().sort_values('index')
+            df_years.columns = ['Year', 'Count']
+            
+            fig_timeline = px.bar(df_years, x='Year', y='Count', color_discrete_sequence=['#90caf9'])
+            fig_timeline.update_layout(height=600, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="white")
+            st.plotly_chart(fig_timeline, use_container_width=True)
+
+        st.divider()
+
         
-        df_repos = pd.DataFrame(repo_data)
+        st.subheader("Top 5 Repositories by Size")
+        top_repos = sorted(repos, key=lambda x: x.get('size', 0), reverse=True)[:5]
         
-        if not df_repos.empty:
-            fig_scatter = px.scatter(
-                df_repos, 
-                x="Size", 
-                y="Stars", 
-                size="Stars", 
-                color="Language",
-                hover_name="Name",
-                size_max=60,
-                log_x=True 
-            )
-            fig_scatter.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)', 
-                plot_bgcolor='rgba(0,0,0,0)', 
-                font_color="white",
-                xaxis_title="Repository Size (KB) - Log Scale",
-                yaxis_title="Stars"
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
+        table_data = []
+        for r in top_repos:
+            table_data.append({
+                "Project Name": r.get('name'),
+                "Language": r.get('language') or "Unknown",
+                "Size (KB)": r.get('size'),
+                "Stars": r.get('stargazers_count'),
+                "Link": r.get('html_url')
+            })
+        
+        df_table = pd.DataFrame(table_data)
+        st.dataframe(
+            df_table,
+            column_config={
+                "Link": st.column_config.LinkColumn("Project URL")
+            },
+            hide_index=True,
+            use_container_width=True
+        )
 
     else:
-        st.error(f"User '{target_user}' not found. Please check the spelling.")
-else:
-    st.info("Enter a GitHub username in the sidebar to start!")
+        st.error("GitHub Error: Invalid username or token.")
